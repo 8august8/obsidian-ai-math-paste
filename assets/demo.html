@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Math Paste demo</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --scan-y: 0px;
+        --scan-opacity: 0;
+        --click: 0;
+        --after: 0;
+        --formula: 0;
+        --inline: 0;
+        --dedupe: 0;
+        --toast: 0;
+        --pointer-x: 790px;
+        --pointer-y: 500px;
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body {
+        width: 1000px;
+        height: 562px;
+        margin: 0;
+        overflow: hidden;
+      }
+
+      body {
+        font-family: Inter, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+        color: #2b2830;
+        background:
+          radial-gradient(circle at 50% -25%, rgba(138, 92, 246, 0.09), transparent 45%),
+          #f8f7fa;
+      }
+
+      .shell {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        padding: 24px 34px 26px;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 58px;
+      }
+
+      .brand { display: flex; align-items: center; gap: 13px; }
+
+      .mark {
+        width: 42px;
+        height: 42px;
+        display: grid;
+        place-items: center;
+        border-radius: 12px;
+        color: white;
+        background: linear-gradient(145deg, #9a73ef, #7451c7);
+        box-shadow: 0 8px 20px rgba(113, 76, 194, 0.2);
+        font: 600 24px Georgia, serif;
+      }
+
+      h1 { margin: 0; font-size: 24px; letter-spacing: -0.6px; }
+      .subtitle { margin-top: 1px; color: #847f89; font-size: 12px; }
+
+      .local {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 7px 10px;
+        border: 1px solid #ccebdc;
+        border-radius: 99px;
+        color: #258456;
+        background: #f3fcf7;
+        font-size: 10px;
+        font-weight: 750;
+        letter-spacing: 0.7px;
+      }
+
+      .local i {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #42bd7d;
+        box-shadow: 0 0 0 4px rgba(66, 189, 125, 0.11);
+      }
+
+      .stage {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1fr 98px 1fr;
+        gap: 15px;
+        height: 422px;
+        margin-top: 18px;
+      }
+
+      .card {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid #e5e1e8;
+        border-radius: 16px;
+        background: #ffffff;
+        box-shadow: 0 12px 34px rgba(45, 35, 54, 0.065);
+      }
+
+      .card-head {
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 17px;
+        border-bottom: 1px solid #eeeaf0;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .badge {
+        padding: 5px 8px;
+        border-radius: 7px;
+        font: 700 9px ui-monospace, SFMono-Regular, Consolas, monospace;
+        letter-spacing: 0.4px;
+      }
+
+      .before-badge { color: #b44b57; background: #fff0f1; }
+      .after-badge { color: #704bb9; background: #f2edff; }
+
+      .content { padding: 17px; }
+      .context { margin: 0 0 10px; color: #4e4953; font-size: 13px; }
+
+      .raw-formula, .clean-formula {
+        min-height: 78px;
+        display: flex;
+        align-items: center;
+        margin-bottom: 12px;
+        padding: 12px 14px;
+        border-radius: 10px;
+        white-space: pre-wrap;
+        font: 14px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+      }
+
+      .raw-formula {
+        border: 1px solid #f1d6d9;
+        color: #953f49;
+        background: #fff7f7;
+      }
+
+      .clean-formula {
+        position: relative;
+        border: 1px solid #ded3f5;
+        color: #5f429c;
+        background: #faf8ff;
+        transform: translateY(calc(8px * (1 - var(--formula))));
+        opacity: var(--formula);
+      }
+
+      .format-label {
+        position: absolute;
+        right: 9px;
+        top: 8px;
+        color: #9d8bbd;
+        font: 650 8px Inter, sans-serif;
+        letter-spacing: 0.5px;
+      }
+
+      .paragraph {
+        margin: 0 0 11px;
+        color: #514c56;
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .raw-inline {
+        padding: 2px 4px;
+        border-radius: 4px;
+        color: #a44550;
+        background: #fff0f1;
+        font-family: ui-monospace, Consolas, monospace;
+      }
+
+      .clean-inline {
+        padding: 2px 4px;
+        border-radius: 4px;
+        color: #6748a6;
+        background: #f3eeff;
+        font-family: ui-monospace, Consolas, monospace;
+      }
+
+      .after-paragraph {
+        transform: translateY(calc(8px * (1 - var(--inline))));
+        opacity: var(--inline);
+      }
+
+      .list-line {
+        margin: 0 0 14px;
+        color: #69636d;
+        font: 12px ui-monospace, SFMono-Regular, Consolas, monospace;
+      }
+
+      .dedupe {
+        position: relative;
+        min-height: 83px;
+        padding: 11px 12px;
+        border: 1px solid #ebe7ed;
+        border-radius: 10px;
+        background: #fbfafc;
+      }
+
+      .dedupe-title {
+        margin-bottom: 9px;
+        color: #8c858f;
+        font-size: 9px;
+        font-weight: 750;
+        letter-spacing: 0.55px;
+        text-transform: uppercase;
+      }
+
+      .tokens { display: flex; flex-wrap: wrap; gap: 7px; }
+
+      .token {
+        padding: 6px 8px;
+        border-radius: 7px;
+        font: 11px ui-monospace, SFMono-Regular, Consolas, monospace;
+      }
+
+      .dirty-token { color: #a64c56; background: #fff0f1; }
+      .good-token { color: #64439f; background: #f1ecfb; }
+
+      .after-content { opacity: calc(0.18 + 0.82 * var(--after)); }
+      .after-dedupe {
+        transform: translateY(calc(8px * (1 - var(--dedupe))));
+        opacity: var(--dedupe);
+      }
+
+      .scan {
+        position: absolute;
+        z-index: 3;
+        left: 10px;
+        right: 10px;
+        top: calc(58px + var(--scan-y));
+        height: 2px;
+        opacity: var(--scan-opacity);
+        background: linear-gradient(90deg, transparent, #f07482, transparent);
+        box-shadow: 0 0 14px rgba(232, 94, 111, 0.38);
+      }
+
+      .action {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .action button {
+        width: 82px;
+        height: 82px;
+        padding: 0;
+        border: 0;
+        border-radius: 23px;
+        color: white;
+        background: linear-gradient(145deg, #9470e4, #7451c6);
+        box-shadow:
+          0 12px 25px rgba(102, 71, 170, 0.2),
+          0 0 0 calc(8px * var(--click)) rgba(137, 96, 221, calc(0.18 * (1 - var(--click))));
+        transform: scale(calc(1 - 0.07 * var(--click)));
+      }
+
+      .action button b { display: block; font: 600 22px Georgia, serif; }
+      .action button span { display: block; margin-top: 2px; font-size: 9px; font-weight: 750; }
+      .shortcut { color: #98919d; font: 9px ui-monospace, Consolas, monospace; }
+
+      .toast {
+        position: absolute;
+        z-index: 5;
+        left: 50%;
+        bottom: 11px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 13px;
+        border: 1px solid #c9ead8;
+        border-radius: 10px;
+        color: #28794f;
+        background: rgba(246, 255, 250, 0.97);
+        box-shadow: 0 10px 26px rgba(49, 111, 76, 0.12);
+        font-size: 11px;
+        transform: translate(-50%, calc(14px * (1 - var(--toast))));
+        opacity: var(--toast);
+      }
+
+      .check {
+        width: 18px;
+        height: 18px;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        color: white;
+        background: #4bc384;
+        font-weight: 900;
+      }
+
+      .pointer {
+        position: absolute;
+        z-index: 10;
+        left: 0;
+        top: 0;
+        width: 26px;
+        height: 33px;
+        transform: translate(var(--pointer-x), var(--pointer-y)) rotate(-18deg);
+        filter: drop-shadow(0 4px 4px rgba(50, 42, 56, 0.2));
+      }
+
+      .pointer svg { width: 100%; height: 100%; }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <div class="brand">
+          <div class="mark">∑</div>
+          <div>
+            <h1>AI Math Paste</h1>
+            <div class="subtitle">One paste. Clean Obsidian math.</div>
+          </div>
+        </div>
+        <div class="local"><i></i> 100% LOCAL · NO API</div>
+      </header>
+
+      <section class="stage">
+        <article class="card">
+          <div class="card-head"><span>Copied AI answer</span><span class="badge before-badge">BEFORE</span></div>
+          <div class="content">
+            <p class="context">训练 correction flow：</p>
+            <div class="raw-formula">\[ a_t=(1-t)a^-+ta^+ \]</div>
+            <p class="paragraph">其中 <span class="raw-inline">\(a^-\)</span> 是坏动作，<span class="raw-inline">\(a^+\)</span> 是好动作。</p>
+            <p class="list-line">- 推理仅需 1–3 NFE。</p>
+            <div class="dedupe">
+              <div class="dedupe-title">The same copy may also contain 3 render layers</div>
+              <div class="tokens">
+                <span class="token dirty-token">τ\tauτ</span>
+                <span class="token dirty-token">BBB</span>
+                <span class="token dirty-token">z0,iz_{0,i}z0,i</span>
+              </div>
+            </div>
+          </div>
+          <div class="scan"></div>
+        </article>
+
+        <div class="action">
+          <button aria-label="Paste and clean"><b>→</b><span>PASTE &amp; CLEAN</span></button>
+          <div class="shortcut">Ctrl + Alt + V</div>
+        </div>
+
+        <article class="card">
+          <div class="card-head"><span>Obsidian Markdown</span><span class="badge after-badge">AFTER</span></div>
+          <div class="content after-content">
+            <p class="context">训练 correction flow：</p>
+            <div class="clean-formula"><span class="format-label">DISPLAY MATH</span>$$
+a_t=(1-t)a^-+ta^+
+$$</div>
+            <p class="paragraph after-paragraph">其中 <span class="clean-inline">$a^-$</span> 是坏动作，<span class="clean-inline">$a^+$</span> 是好动作。</p>
+            <p class="list-line after-paragraph">- 推理仅需 1–3 NFE。</p>
+            <div class="dedupe after-dedupe">
+              <div class="dedupe-title">Duplicate layers recovered from HTML annotation</div>
+              <div class="tokens">
+                <span class="token good-token">$\tau$</span>
+                <span class="token good-token">$B$</span>
+                <span class="token good-token">$z_{0,i}$</span>
+              </div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <div class="toast"><span class="check">✓</span> Converted 1 display + 5 inline formulas · recovered 3 from HTML</div>
+
+      <div class="pointer" aria-hidden="true">
+        <svg viewBox="0 0 30 38" fill="none">
+          <path d="M3 2.5L26 22.2L15.8 23.4L20.6 33.5L15.1 36L10.4 25.7L3 32V2.5Z" fill="#FFFFFF" stroke="#3C3741" stroke-width="2" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    </main>
+
+    <script>
+      const frame = Math.max(0, Math.min(47, Number(new URLSearchParams(location.search).get("frame") ?? 0)));
+      const clamp = (value) => Math.max(0, Math.min(1, value));
+      const smooth = (value) => {
+        const x = clamp(value);
+        return x * x * (3 - 2 * x);
+      };
+      const style = document.documentElement.style;
+
+      const scan = smooth(frame / 16);
+      const move = smooth((frame - 7) / 10);
+      const click = frame >= 18 && frame <= 22 ? Math.sin(((frame - 18) / 4) * Math.PI) : 0;
+      const after = smooth((frame - 20) / 5);
+      const formula = smooth((frame - 22) / 5);
+      const inline = smooth((frame - 26) / 5);
+      const dedupe = smooth((frame - 30) / 5);
+      const toast = smooth((frame - 35) / 5);
+
+      style.setProperty("--scan-y", `${scan * 335}px`);
+      style.setProperty("--scan-opacity", `${frame < 18 ? Math.sin(scan * Math.PI) : 0}`);
+      style.setProperty("--click", click.toFixed(4));
+      style.setProperty("--after", after.toFixed(4));
+      style.setProperty("--formula", formula.toFixed(4));
+      style.setProperty("--inline", inline.toFixed(4));
+      style.setProperty("--dedupe", dedupe.toFixed(4));
+      style.setProperty("--toast", toast.toFixed(4));
+      style.setProperty("--pointer-x", `${790 - 307 * move}px`);
+      style.setProperty("--pointer-y", `${500 - 266 * move + click * 5}px`);
+    </script>
+  </body>
+</html>

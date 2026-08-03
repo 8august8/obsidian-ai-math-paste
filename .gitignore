@@ -1,0 +1,21 @@
+# Editors
+.vscode/
+.idea/
+*.iml
+
+# Dependencies
+node_modules/
+
+# Generated plugin bundle (release asset only)
+main.js
+*.map
+
+# Local plugin data
+data.json
+
+# Demo render frames
+assets/.demo-frames/
+
+# Operating systems
+.DS_Store
+Thumbs.db
