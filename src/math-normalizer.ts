@@ -6,6 +6,8 @@ export interface FormulaNormalizationResult {
   changed: boolean;
   webRestoredCount?: number;
   skippedWebFormulaCount?: number;
+  recoveredInlineDelimiterCount?: number;
+  recoveredDisplayDelimiterCount?: number;
 }
 
 type FormulaType = "inline" | "display";
@@ -243,7 +245,7 @@ function markExistingDollarMath(text: string, mask: Uint8Array): void {
   }
 }
 
-function buildProtectedMask(text: string): Uint8Array {
+export function buildProtectedMask(text: string): Uint8Array {
   const mask = new Uint8Array(text.length);
   markFencedCode(text, mask);
   markInlineCode(text, mask);

@@ -22,12 +22,12 @@ function escapeHtml(text: string): string {
     .replaceAll(">", "&gt;");
 }
 
-function fakeClipboardFixture(formulas: WebFormulaRecord[]): Fixture {
+function fakeClipboardFixture(formulas: WebFormulaRecord[], trailingText = ""): Fixture {
   const formulaHtml = formulas.map(
     ({ flattenedText }, index) =>
       `<span data-formula="${index}">${escapeHtml(flattenedText)}</span>`,
   );
-  const html = `<p>${formulaHtml.join("\n")}</p>`;
+  const html = `<p>${formulaHtml.join("\n")}${escapeHtml(trailingText)}</p>`;
 
   return {
     html,
@@ -151,6 +151,20 @@ void test("restores repeated identical formulas by distinct DOM nodes", () => {
   assert.equal(result.webRestoredCount, 2);
 });
 
+void test("does not apply degraded inference when annotation evidence exists", () => {
+  const fixture = fakeClipboardFixture(
+    [{ latex: "B", flattenedText: "BBB", isDisplay: false }],
+    " and keep (file_name)",
+  );
+  const result = normalizeClipboardText("fallback should not be used", fixture.html, {
+    convertHtmlToMarkdown: simpleHtmlToMarkdown,
+    parseHtml: fixture.parseHtml,
+  });
+
+  assert.equal(result.text, "$B$ and keep (file_name)");
+  assert.equal(result.recoveredInlineDelimiterCount, undefined);
+});
+
 void test("falls back conservatively when HTML has no annotation evidence", () => {
   const plain = String.raw`Keep BBB, repair \(x\).`;
   const result = normalizeClipboardText(plain, "<p>no math</p>", {
@@ -165,6 +179,32 @@ void test("falls back conservatively when HTML has no annotation evidence", () =
 
   assert.equal(result.text, "Keep BBB, repair $x$.");
   assert.equal(result.webRestoredCount, 0);
+});
+
+void test("recovers stripped delimiters when copy-button HTML has no math metadata", () => {
+  const plain = String.raw`状态转移为：
+
+[
+(c_t,\ a_t,\ c_{t+1})
+]
+
+由 (m_\eta) 计算。`;
+  const html = String.raw`<p>状态转移为：</p><p>[<br>(c_t,\ a_t,\ c_{t+1})<br>]</p><p>由 (m_\eta) 计算。</p>`;
+  const result = normalizeClipboardText(plain, html, {
+    convertHtmlToMarkdown: simpleHtmlToMarkdown,
+    parseHtml: () =>
+      ({
+        body: { innerHTML: html },
+        createTextNode: (textContent: string) => ({ textContent }),
+        querySelectorAll: () => [],
+      }) as unknown as Document,
+  });
+
+  assert.equal(result.webRestoredCount, 0);
+  assert.equal(result.recoveredDisplayDelimiterCount, 1);
+  assert.equal(result.recoveredInlineDelimiterCount, 1);
+  assert.match(result.text, /\$\$\n\(c_t,\\ a_t,\\ c_\{t\+1\}\)\n\$\$/);
+  assert.match(result.text, /由 \$m_\\eta\$ 计算/);
 });
 
 void test("returns original and restored Markdown for selection rescue", () => {

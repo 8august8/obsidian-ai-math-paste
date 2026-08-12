@@ -1,7 +1,7 @@
 {
   "id": "ai-math-paste",
   "name": "AI Math Paste",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "minAppVersion": "1.7.2",
   "description": "Paste math from AI assistants and the web without duplicated formulas or broken LaTeX delimiters.",
   "author": "8august8",
