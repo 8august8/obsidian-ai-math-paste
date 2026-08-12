@@ -4,7 +4,7 @@
 
 ![AI Math Paste 效果演示](assets/demo.gif)
 
-AI Math Paste 是一个极轻量、完全本地运行的 Obsidian 桌面插件。它读取剪贴板中原本就存在的富文本 HTML，从 MathML annotation 中恢复 LaTeX，删除重复的可视渲染层，并写入干净的 Obsidian Markdown。
+AI Math Paste 是一个极轻量、完全本地运行的 Obsidian 桌面插件。剪贴板仍含 MathML annotation 时，它会恢复 canonical LaTeX 并删除重复的可视渲染层；网站复制按钮删掉这些元数据，甚至把 `\\[...\\]`、`\\(...\\)` 的反斜杠一起剥掉时，它会根据纯文本结构保守恢复高置信公式分隔符。
 
 ## 它解决什么问题
 
@@ -26,6 +26,18 @@ $z_{0,i}$
 
 它也会将 `\(...\)` 转换成 `$...$`，将 `\[...\]` 转换成 `$$...$$`，并保护代码块、行内代码、列表、引用、表格和已有的美元符号公式。
 
+新版 ChatGPT 复制按钮还可能产生：
+
+```text
+[
+(c_t,\ a_t,\ c_{t+1})
+]
+
+由 (m_\eta) 计算。
+```
+
+插件会先恢复这个独立公式块和具有强数学特征的行内公式，再转换成 Obsidian 数学格式；有歧义的 `(q)` 会原样保留。
+
 ## 使用方法
 
 1. 从 AI 对话或网页复制包含公式的文本。
@@ -42,13 +54,13 @@ $z_{0,i}$
 ## 保守原则
 
 - 富文本 HTML 中存在 TeX annotation：用 canonical LaTeX 替换整个渲染公式节点。
-- 没有可靠 annotation：只进行安全的公式分隔符转换。
+- 没有可靠 annotation：转换明确的分隔符；只有内容包含强 LaTeX 或数学信号时，才恢复被剥掉的方括号或圆括号分隔符。
 - 不会凭文本外观猜测普通的 `BBB` 是公式。
 
 ## 兼容情况
 
 - 首个版本仅支持桌面端。
-- 已在 Windows 上使用 ChatGPT/Codex 富剪贴板内容验证。
+- 已在 Windows 上使用含 annotation 和不含公式元数据的 ChatGPT/Codex 剪贴板内容验证。
 - 其他网站只要在剪贴板 HTML 中提供 MathML 或 KaTeX TeX annotation，原则上即可处理。欢迎提交 Claude、Gemini、DeepSeek、Perplexity 和论文网站的测试样例。
 
 ## 隐私

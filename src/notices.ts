@@ -4,6 +4,9 @@ export function resultNotice(result: FormulaNormalizationResult, pasted: boolean
   const total = result.inlineCount + result.displayCount;
   const webRestoredCount = result.webRestoredCount ?? 0;
   const skippedWebFormulaCount = result.skippedWebFormulaCount ?? 0;
+  const recoveredDelimiterCount =
+    (result.recoveredInlineDelimiterCount ?? 0) +
+    (result.recoveredDisplayDelimiterCount ?? 0);
   let message: string;
 
   if (total > 0) {
@@ -20,6 +23,9 @@ export function resultNotice(result: FormulaNormalizationResult, pasted: boolean
   }
   if (skippedWebFormulaCount > 0) {
     message += `; skipped ${skippedWebFormulaCount} formulas without a reliable mapping`;
+  }
+  if (recoveredDelimiterCount > 0) {
+    message += `; restored ${recoveredDelimiterCount} stripped delimiters`;
   }
 
   return message;

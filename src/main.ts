@@ -6,6 +6,7 @@ import {
   type Editor,
 } from "obsidian";
 import { readClipboardPayload, type ClipboardLike } from "./clipboard";
+import { normalizeMathInRange } from "./degraded-math";
 import { normalizeLatexInRange } from "./math-normalizer";
 import { resultNotice } from "./notices";
 import {
@@ -89,7 +90,7 @@ export default class AiMathPastePlugin extends Plugin {
       return;
     }
 
-    const result = richSelectionResult ?? normalizeLatexInRange(source, start, end);
+    const result = richSelectionResult ?? normalizeMathInRange(source, start, end);
     result.changed = result.text !== selection;
 
     if (result.changed) {

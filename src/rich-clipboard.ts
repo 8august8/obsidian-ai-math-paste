@@ -1,3 +1,4 @@
+import { normalizeMathInRange } from "./degraded-math";
 import {
   normalizeLatexInRange,
   type FormulaNormalizationResult,
@@ -195,7 +196,7 @@ export function normalizeClipboardText(
     return addWebStats(normalizeLatexInRange(richResult.restoredMarkdown), richResult);
   }
 
-  return addWebStats(normalizeLatexInRange(plainText), null);
+  return addWebStats(normalizeMathInRange(plainText), null);
 }
 
 export function sameTextIgnoringLineEndings(left: string, right: string): boolean {
