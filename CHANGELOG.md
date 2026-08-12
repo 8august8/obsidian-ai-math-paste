@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0
+
+- Recover canonical LaTeX from ChatGPT's `role="math"` and `data-math-source` clipboard HTML.
+- Detect inline versus display mode from the associated KaTeX structure.
+- Prefer existing MathML TeX annotations when both exact metadata formats are present.
+- Reject conflicting `data-math-source` and `aria-label` values instead of guessing.
+
 ## 0.2.0
 
 - Recover high-confidence display formulas when current ChatGPT copy-button output strips `\\[...\\]` to standalone `[...]` lines.

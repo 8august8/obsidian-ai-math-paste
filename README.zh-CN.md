@@ -4,7 +4,7 @@
 
 ![AI Math Paste 效果演示](assets/demo.gif)
 
-AI Math Paste 是一个极轻量、完全本地运行的 Obsidian 桌面插件。剪贴板仍含 MathML annotation 时，它会恢复 canonical LaTeX 并删除重复的可视渲染层；网站复制按钮删掉这些元数据，甚至把 `\\[...\\]`、`\\(...\\)` 的反斜杠一起剥掉时，它会根据纯文本结构保守恢复高置信公式分隔符。
+AI Math Paste 是一个极轻量、完全本地运行的 Obsidian 桌面插件。剪贴板含 MathML annotation 或 ChatGPT 的 `data-math-source` 属性时，它会恢复 canonical LaTeX 并删除重复的可视渲染层；网站复制按钮删掉这些元数据，甚至把 `\\[...\\]`、`\\(...\\)` 的反斜杠一起剥掉时，它会根据纯文本结构保守恢复高置信公式分隔符。
 
 ## 它解决什么问题
 
@@ -54,13 +54,14 @@ $z_{0,i}$
 ## 保守原则
 
 - 富文本 HTML 中存在 TeX annotation：用 canonical LaTeX 替换整个渲染公式节点。
+- HTML 中存在带 `data-math-source` 的 `role="math"` 元素：使用其中的 canonical LaTeX 和 KaTeX 行内/行间类型；若同时存在 `aria-label`，两者必须一致。
 - 没有可靠 annotation：转换明确的分隔符；只有内容包含强 LaTeX 或数学信号时，才恢复被剥掉的方括号或圆括号分隔符。
 - 不会凭文本外观猜测普通的 `BBB` 是公式。
 
 ## 兼容情况
 
 - 首个版本仅支持桌面端。
-- 已在 Windows 上使用含 annotation 和不含公式元数据的 ChatGPT/Codex 剪贴板内容验证。
+- 已在 Windows 上使用 MathML annotation、ChatGPT `data-math-source` 以及不含公式元数据的 ChatGPT/Codex 剪贴板内容验证。
 - 其他网站只要在剪贴板 HTML 中提供 MathML 或 KaTeX TeX annotation，原则上即可处理。欢迎提交 Claude、Gemini、DeepSeek、Perplexity 和论文网站的测试样例。
 
 ## 隐私
