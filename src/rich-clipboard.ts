@@ -16,6 +16,7 @@ export interface WebFormulaRecord {
 export interface SanitizedClipboardHtml {
   html: string;
   annotationCount: number;
+  sourceMathCount: number;
   restoredCount: number;
   restoredInlineCount: number;
   restoredDisplayCount: number;
@@ -38,6 +39,9 @@ interface FormulaParts {
   replacementTarget: Element | null;
   isDisplay: boolean;
 }
+
+const TEX_ANNOTATION_SELECTOR = 'annotation[encoding="application/x-tex"]';
+const SOURCE_MATH_SELECTOR = '[role="math"][data-math-source]';
 
 function parseClipboardHtml(html: string, parseHtml?: HtmlParser): Document | null {
   if (!html) {
@@ -74,6 +78,44 @@ function formulaParts(annotation: Element): FormulaParts {
   };
 }
 
+function normalizeMetadata(text: string): string {
+  return text.replace(/\r\n?/g, "\n").trim();
+}
+
+function sourceMathParts(element: Element): FormulaParts {
+  const source = element.getAttribute("data-math-source") ?? "";
+  const ariaLabel = element.getAttribute("aria-label");
+  const latex = normalizeMetadata(source);
+  const metadataAgrees =
+    ariaLabel === null || normalizeMetadata(ariaLabel) === latex;
+
+  return {
+    latex: latex && metadataAgrees ? latex : "",
+    container: element,
+    replacementTarget: element,
+    isDisplay: element.querySelector(".katex-display") !== null,
+  };
+}
+
+function collectFormulaEntries(document: Document): {
+  annotations: Element[];
+  sourceMathElements: Element[];
+  entries: FormulaParts[];
+} {
+  const annotations = Array.from(document.querySelectorAll(TEX_ANNOTATION_SELECTOR));
+  const annotationEntries = annotations.map(formulaParts);
+  const sourceMathElements = Array.from(document.querySelectorAll(SOURCE_MATH_SELECTOR));
+  const sourceEntries = sourceMathElements
+    .filter((element) => element.querySelector(TEX_ANNOTATION_SELECTOR) === null)
+    .map(sourceMathParts);
+
+  return {
+    annotations,
+    sourceMathElements,
+    entries: [...annotationEntries, ...sourceEntries],
+  };
+}
+
 export function extractWebFormulaRecords(
   html: string,
   parseHtml?: HtmlParser,
@@ -83,12 +125,9 @@ export function extractWebFormulaRecords(
     return [];
   }
 
-  const annotations = Array.from(
-    document.querySelectorAll('annotation[encoding="application/x-tex"]'),
-  );
+  const { entries } = collectFormulaEntries(document);
 
-  return annotations.map((annotation) => {
-    const { latex, container, isDisplay } = formulaParts(annotation);
+  return entries.map(({ latex, container, isDisplay }) => {
     return {
       latex,
       flattenedText: container?.textContent ?? "",
@@ -106,18 +145,14 @@ export function sanitizeClipboardHtml(
     return null;
   }
 
-  const annotations = Array.from(
-    document.querySelectorAll('annotation[encoding="application/x-tex"]'),
-  );
+  const { annotations, sourceMathElements, entries } = collectFormulaEntries(document);
   const replacedTargets = new Set<Element>();
   let restoredCount = 0;
   let restoredInlineCount = 0;
   let restoredDisplayCount = 0;
   let skippedCount = 0;
 
-  for (const annotation of annotations) {
-    const { latex, replacementTarget, isDisplay } = formulaParts(annotation);
-
+  for (const { latex, replacementTarget, isDisplay } of entries) {
     if (!latex || !replacementTarget || replacedTargets.has(replacementTarget)) {
       skippedCount += 1;
       continue;
@@ -138,6 +173,7 @@ export function sanitizeClipboardHtml(
   return {
     html: document.body.innerHTML,
     annotationCount: annotations.length,
+    sourceMathCount: sourceMathElements.length,
     restoredCount,
     restoredInlineCount,
     restoredDisplayCount,
@@ -155,7 +191,7 @@ export function convertRichClipboardHtml(
   }
 
   const richResult = sanitizeClipboardHtml(html, parseHtml);
-  if (!richResult || richResult.annotationCount === 0 || richResult.restoredCount === 0) {
+  if (!richResult || richResult.restoredCount === 0) {
     return null;
   }
 

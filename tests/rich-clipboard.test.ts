@@ -15,11 +15,19 @@ interface Fixture {
   parseHtml: HtmlParser;
 }
 
+interface SourceMathFormula extends WebFormulaRecord {
+  ariaLabel?: string | null;
+}
+
 function escapeHtml(text: string): string {
   return text
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
+}
+
+function escapeAttribute(text: string): string {
+  return escapeHtml(text).replaceAll('"', "&quot;");
 }
 
 function fakeClipboardFixture(formulas: WebFormulaRecord[], trailingText = ""): Fixture {
@@ -71,8 +79,70 @@ function fakeClipboardFixture(formulas: WebFormulaRecord[], trailingText = ""): 
         body,
         createTextNode: (textContent: string) => ({ textContent }),
         querySelectorAll: (selector: string) => {
-          assert.equal(selector, 'annotation[encoding="application/x-tex"]');
-          return annotations;
+          if (selector === 'annotation[encoding="application/x-tex"]') {
+            return annotations;
+          }
+          if (selector === '[role="math"][data-math-source]') {
+            return [];
+          }
+          assert.fail(`Unexpected selector: ${selector}`);
+        },
+      } as unknown as Document;
+    },
+  };
+}
+
+function fakeSourceMathFixture(formulas: SourceMathFormula[]): Fixture {
+  const formulaHtml = formulas.map(({ latex, flattenedText, isDisplay, ariaLabel }, index) => {
+    const aria = ariaLabel === null ? "" : ` aria-label="${escapeAttribute(ariaLabel ?? latex)}"`;
+    const katexClass = isDisplay ? "katex-display" : "katex";
+    return `<span role="math" data-math-source="${escapeAttribute(latex)}"${aria} data-source-formula="${index}"><span class="${katexClass}">${escapeHtml(flattenedText)}</span></span>`;
+  });
+  const html = `<p>${formulaHtml.join("\n")}</p>`;
+
+  return {
+    html,
+    parseHtml: () => {
+      const body = { innerHTML: html };
+      const sourceMathElements = formulas.map(
+        ({ latex, flattenedText, isDisplay, ariaLabel }, index) => {
+          const originalHtml = formulaHtml[index] ?? "";
+          return {
+            textContent: flattenedText,
+            getAttribute: (name: string) => {
+              if (name === "data-math-source") {
+                return latex;
+              }
+              if (name === "aria-label") {
+                return ariaLabel === undefined ? latex : ariaLabel;
+              }
+              return null;
+            },
+            querySelector: (selector: string) =>
+              selector === ".katex-display" && isDisplay ? {} : null,
+            querySelectorAll: () => [],
+            replaceWith: (node: { textContent?: string | null }) => {
+              // eslint-disable-next-line no-unsanitized/property -- controlled test fixture
+              body.innerHTML = body.innerHTML.replace(
+                originalHtml,
+                escapeHtml(node.textContent ?? ""),
+              );
+            },
+          };
+        },
+      );
+
+      return {
+        body,
+        createTextNode: (textContent: string) => ({ textContent }),
+        querySelectorAll: (selector: string) => {
+          if (selector === 'annotation[encoding="application/x-tex"]') {
+            return [];
+          }
+          if (selector === '[role="math"][data-math-source]') {
+            return sourceMathElements;
+          }
+          assert.fail(`Unexpected selector: ${selector}`);
         },
       } as unknown as Document;
     },
@@ -112,6 +182,108 @@ void test("replaces formula DOM nodes with their annotations", () => {
   assert.equal(result?.skippedCount, 0);
   assert.equal(result?.html, String.raw`<p>\(\tau\)
 \[B\]</p>`);
+});
+
+void test("restores inline and display formulas from data-math-source", () => {
+  const formulas: SourceMathFormula[] = [
+    {
+      latex: String.raw`m_\eta`,
+      flattenedText: "mη",
+      isDisplay: false,
+    },
+    {
+      latex: String.raw`v = P_Tv_{\rm success} - \lambda P_N\nabla E_{\rm failure}.`,
+      flattenedText: "v=PTvsuccess−λPN∇Efailure.",
+      isDisplay: true,
+    },
+  ];
+  const fixture = fakeSourceMathFixture(formulas);
+
+  assert.deepEqual(extractWebFormulaRecords(fixture.html, fixture.parseHtml), formulas);
+
+  const result = normalizeClipboardText("fragmented fallback", fixture.html, {
+    convertHtmlToMarkdown: simpleHtmlToMarkdown,
+    parseHtml: fixture.parseHtml,
+  });
+
+  assert.equal(result.webRestoredCount, 2);
+  assert.equal(result.inlineCount, 1);
+  assert.equal(result.displayCount, 1);
+  assert.equal(
+    result.text,
+    String.raw`$m_\eta$
+$$
+v = P_Tv_{\rm success} - \lambda P_N\nabla E_{\rm failure}.
+$$`,
+  );
+});
+
+void test("rejects conflicting aria-label and data-math-source metadata", () => {
+  const fixture = fakeSourceMathFixture([
+    {
+      latex: String.raw`m_\eta`,
+      ariaLabel: String.raw`m_\theta`,
+      flattenedText: "mη",
+      isDisplay: false,
+    },
+  ]);
+  const result = sanitizeClipboardHtml(fixture.html, fixture.parseHtml);
+
+  assert.equal(result?.sourceMathCount, 1);
+  assert.equal(result?.restoredCount, 0);
+  assert.equal(result?.skippedCount, 1);
+  assert.equal(result?.html, fixture.html);
+});
+
+void test("prefers a nested TeX annotation over data-math-source", () => {
+  const originalHtml = '<span role="math" data-math-source="wrong" aria-label="wrong">flat</span>';
+  const html = `<p>${originalHtml}</p>`;
+  const body = { innerHTML: html };
+  const replacementTarget = {
+    textContent: "flat",
+    replaceWith: (node: { textContent?: string | null }) => {
+      // eslint-disable-next-line no-unsanitized/property -- controlled test fixture
+      body.innerHTML = body.innerHTML.replace(
+        originalHtml,
+        escapeHtml(node.textContent ?? ""),
+      );
+    },
+  };
+  const annotation = {
+    textContent: String.raw`m_\eta`,
+    closest: (selector: string) => {
+      if (selector === ".katex") {
+        return replacementTarget;
+      }
+      return null;
+    },
+  };
+  const sourceMathElement = {
+    querySelector: (selector: string) =>
+      selector === 'annotation[encoding="application/x-tex"]' ? annotation : null,
+  };
+  const parseHtml = (() =>
+    ({
+      body,
+      createTextNode: (textContent: string) => ({ textContent }),
+      querySelectorAll: (selector: string) => {
+        if (selector === 'annotation[encoding="application/x-tex"]') {
+          return [annotation];
+        }
+        if (selector === '[role="math"][data-math-source]') {
+          return [sourceMathElement];
+        }
+        assert.fail(`Unexpected selector: ${selector}`);
+      },
+    }) as unknown as Document) satisfies HtmlParser;
+
+  const result = sanitizeClipboardHtml(html, parseHtml);
+
+  assert.equal(result?.annotationCount, 1);
+  assert.equal(result?.sourceMathCount, 1);
+  assert.equal(result?.restoredCount, 1);
+  assert.equal(result?.skippedCount, 0);
+  assert.equal(result?.html, String.raw`<p>\(m_\eta\)</p>`);
 });
 
 void test("restores tripled web formulas before converting HTML to Markdown", () => {

@@ -1,6 +1,6 @@
 {
   "name": "obsidian-ai-math-paste",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Paste clean math from AI assistants and the web into Obsidian.",
   "main": "main.js",
   "type": "module",
